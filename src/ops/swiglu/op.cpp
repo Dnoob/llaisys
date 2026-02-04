@@ -1,7 +1,18 @@
 #include "op.hpp"
 
+#include "../../core/llaisys_core.hpp"
+
+#include "cpu/swiglu_cpu.hpp"
+
 namespace llaisys::ops {
 void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
-    TO_BE_IMPLEMENTED();
+    CHECK_SAME_DEVICE(out, gate, up);
+    CHECK_SAME_SHAPE(out->shape(), gate->shape(), up->shape());
+    CHECK_SAME_DTYPE(out->dtype(), gate->dtype(), up->dtype());
+    ASSERT(out->isContiguous() && gate->isContiguous() && up->isContiguous(), "swiglu: all tensors must be contiguous.");
+
+    if(out->deviceType() == LLAISYS_DEVICE_CPU) {
+        return cpu::swiglu(out->data(), gate->data(), up->data(), out->dtype(), out->numel());
+    }
 }
 } // namespace llaisys::ops
