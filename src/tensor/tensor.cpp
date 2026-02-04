@@ -2,9 +2,12 @@
 
 #include "../utils.hpp"
 
+#include <cstddef>
 #include <cstring>
+#include <memory>
 #include <numeric>
 #include <sstream>
+#include <vector>
 
 namespace llaisys {
 
@@ -164,27 +167,66 @@ void Tensor::debug() const {
 }
 
 bool Tensor::isContiguous() const {
-    TO_BE_IMPLEMENTED();
+    ptrdiff_t expected = 1;
+    for(size_t i = ndim(); i > 0; i--) {
+        if(_meta.strides[i - 1] != expected)
+            return false;
+        expected *= _meta.shape[i - 1];
+    }
     return true;
 }
 
 tensor_t Tensor::permute(const std::vector<size_t> &order) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    size_t n = ndim();
+    std::vector<size_t> new_shape(n);
+    std::vector<ptrdiff_t> new_strides(n);
+    for (size_t i = 0; i < n; i++) {
+        new_shape[i] = _meta.shape[order[i]];
+        new_strides[i] = _meta.strides[order[i]];
+    }
+    TensorMeta new_meta{_meta.dtype, new_shape, new_strides};
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, _offset));
 }
 
 tensor_t Tensor::view(const std::vector<size_t> &shape) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    // 必须是 contiguous 才能 view
+    CHECK_ARGUMENT(isContiguous(), "view requires contiguous tensor");
+
+    // 总元素数必须一致
+    size_t new_numel = 1;
+    for (auto s : shape) {
+        new_numel *= s;
+    }
+    CHECK_ARGUMENT(new_numel == numel(), "view shape must have same number of elements");
+
+    // 计算新的 strides
+    size_t n = shape.size();
+    std::vector<ptrdiff_t> new_strides(n);
+    ptrdiff_t stride = 1;
+    for (size_t i = n; i > 0; i--) {
+        new_strides[i - 1] = stride;
+        stride *= shape[i - 1];
+    }
+
+    // 更新 shape 和 strides
+    TensorMeta new_meta{_meta.dtype, shape, new_strides};
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, _offset));
 }
 
 tensor_t Tensor::slice(size_t dim, size_t start, size_t end) const {
-    TO_BE_IMPLEMENTED();
-    return std::shared_ptr<Tensor>(new Tensor(_meta, _storage));
+    std::vector<size_t> new_shape = _meta.shape;
+    new_shape[dim] = end - start;
+
+    size_t new_offset = _offset + start * _meta.strides[dim] * elementSize();
+
+    TensorMeta new_meta{_meta.dtype, new_shape, _meta.strides};
+    return std::shared_ptr<Tensor>(new Tensor(new_meta, _storage, new_offset));
 }
 
 void Tensor::load(const void *src_) {
-    TO_BE_IMPLEMENTED();
+    core::context().setDevice(this->deviceType(), this->deviceId());
+    auto kind = (this->deviceType() == LLAISYS_DEVICE_CPU) ? LLAISYS_MEMCPY_H2H : LLAISYS_MEMCPY_H2D;
+    core::context().runtime().api()->memcpy_sync(this->data(), src_, this->numel() * this->elementSize(), kind);
 }
 
 tensor_t Tensor::contiguous() const {
