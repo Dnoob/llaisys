@@ -9,9 +9,6 @@ from ctypes import (
     Structure, POINTER, c_int, c_size_t, c_float, c_int64, c_void_p
 )
 import json
-import safetensors
-import numpy as np
-import ml_dtypes
 
 
 # ctypes 结构体
@@ -68,17 +65,19 @@ LIB_LLAISYS.llaisysQwen2ModelInfer.argtypes = [c_void_p, POINTER(c_int64), c_siz
 LIB_LLAISYS.llaisysQwen2ModelInfer.restype = c_int64
 
 
-# numpy dtype -> llaisys DataType 映射
-NUMPY_DTYPE_MAP = {
-    np.dtype("float32"): int(DataType.F32),
-    np.dtype("float16"): int(DataType.F16),
-    np.dtype(ml_dtypes.bfloat16): int(DataType.BF16),
-}
-
-
 class Qwen2:
 
     def __init__(self, model_path, device: DeviceType = DeviceType.CPU):
+        import safetensors
+        import numpy as np
+        import ml_dtypes
+
+        self._dtype_map = {
+            np.dtype("float32"): int(DataType.F32),
+            np.dtype("float16"): int(DataType.F16),
+            np.dtype(ml_dtypes.bfloat16): int(DataType.BF16),
+        }
+
         model_path = Path(model_path)
 
         with open(model_path / "config.json") as f:
@@ -130,7 +129,7 @@ class Qwen2:
     def _load_weight(self, name, tensor_np, device):
         shape = tensor_np.shape
         shape_arr = (c_size_t * len(shape))(*shape)
-        dtype = NUMPY_DTYPE_MAP.get(tensor_np.dtype, int(DataType.BF16))
+        dtype = self._dtype_map.get(tensor_np.dtype, int(DataType.BF16))
 
         t = LIB_LLAISYS.tensorCreate(
             shape_arr, c_size_t(len(shape)), dtype, int(self._device), c_int(0)
