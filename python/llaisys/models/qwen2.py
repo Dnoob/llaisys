@@ -68,12 +68,13 @@ LIB_LLAISYS.llaisysQwen2ModelInfer.restype = c_int64
 class Qwen2:
 
     def __init__(self, model_path, device: DeviceType = DeviceType.CPU):
-        import safetensors
-        import numpy as np
+        import torch
+        import safetensors.torch
 
-        self._dtype_map = {
-            np.dtype("float32"): int(DataType.F32),
-            np.dtype("float16"): int(DataType.F16),
+        self._torch_dtype_map = {
+            torch.float32: int(DataType.F32),
+            torch.float16: int(DataType.F16),
+            torch.bfloat16: int(DataType.BF16),
         }
 
         model_path = Path(model_path)
@@ -99,40 +100,39 @@ class Qwen2:
         self._meta = meta
         self._device = device
 
-        # 创建模型
         device_ids = (c_int * 1)(0)
         self._model = LIB_LLAISYS.llaisysQwen2ModelCreate(
             ctypes.byref(meta), int(device), device_ids, 1
         )
 
-        # 获取权重指针
         weights_ptr = LIB_LLAISYS.llaisysQwen2ModelWeights(self._model)
         self._weights = weights_ptr.contents
 
-        # 加载权重
         self._tensors = []
+        self._pt_tensors = []
         has_lm_head = False
 
         for file in sorted(model_path.glob("*.safetensors")):
-            data_ = safetensors.safe_open(file, framework="numpy", device="cpu")
-            for name_ in data_.keys():
-                tensor_np = data_.get_tensor(name_)
-                self._load_weight(name_, tensor_np, device)
+            data_ = safetensors.torch.load_file(str(file), device="cpu")
+            for name_, tensor_pt in data_.items():
+                tensor_pt = tensor_pt.contiguous()
+                self._pt_tensors.append(tensor_pt)
+                self._load_weight(name_, tensor_pt, device)
                 if name_ == "lm_head.weight":
                     has_lm_head = True
 
         if not has_lm_head:
             self._weights.out_embed = self._weights.in_embed
 
-    def _load_weight(self, name, tensor_np, device):
-        shape = tensor_np.shape
+    def _load_weight(self, name, tensor_pt, device):
+        shape = tensor_pt.shape
         shape_arr = (c_size_t * len(shape))(*shape)
-        dtype = self._dtype_map.get(tensor_np.dtype, int(DataType.BF16))
+        dtype = self._torch_dtype_map.get(tensor_pt.dtype, int(DataType.BF16))
 
         t = LIB_LLAISYS.tensorCreate(
             shape_arr, c_size_t(len(shape)), dtype, int(self._device), c_int(0)
         )
-        LIB_LLAISYS.tensorLoad(t, tensor_np.ctypes.data_as(c_void_p))
+        LIB_LLAISYS.tensorLoad(t, c_void_p(tensor_pt.data_ptr()))
         self._tensors.append(t)
 
         w = self._weights
