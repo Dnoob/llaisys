@@ -70,12 +70,10 @@ class Qwen2:
     def __init__(self, model_path, device: DeviceType = DeviceType.CPU):
         import safetensors
         import numpy as np
-        import ml_dtypes
 
         self._dtype_map = {
             np.dtype("float32"): int(DataType.F32),
             np.dtype("float16"): int(DataType.F16),
-            np.dtype(ml_dtypes.bfloat16): int(DataType.BF16),
         }
 
         model_path = Path(model_path)
