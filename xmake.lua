@@ -15,8 +15,20 @@ option_end()
 
 if has_config("nv-gpu") then
     add_defines("ENABLE_NVIDIA_API")
-    includes("xmake/nvidia.lua")
 end
+
+-- MetaX (MACA) --
+option("mx-gpu")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Whether to compile implementations for MetaX GPU")
+option_end()
+
+if has_config("mx-gpu") then
+    add_defines("ENABLE_METAX_API")
+end
+
+includes("xmake/metax.lua")
 
 target("llaisys-utils")
     set_kind("static")
@@ -106,6 +118,20 @@ target("llaisys")
     set_languages("cxx17")
     set_warnings("all", "error")
     add_files("src/llaisys/*.cc")
+    if has_config("nv-gpu") then
+        add_rules("cuda")
+        add_cugencodes("native")
+        add_files("src/device/nvidia/*.cu", "src/ops/*/nvidia/*.cu")
+        add_cuflags("--compiler-options", "-fPIC", {force = true})
+        add_links("cudart", "cublas")
+        add_linkdirs("/usr/local/cuda/lib64")
+    end
+    if has_config("mx-gpu") then
+        add_files("src/device/metax/*.cu", "src/ops/*/metax/*.cu", {rule = "maca"})
+        add_includedirs("/opt/maca/include")
+        add_linkdirs("/opt/maca/lib")
+        add_links("mcblas")
+    end
     set_installdir(".")
 
     

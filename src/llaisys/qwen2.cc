@@ -1,6 +1,7 @@
 #include "llaisys/models/qwen2.h"
 #include "llaisys_tensor.hpp"
 
+#include "../core/llaisys_core.hpp"
 #include "../ops/add/op.hpp"
 #include "../ops/argmax/op.hpp"
 #include "../ops/embedding/op.hpp"
@@ -172,7 +173,12 @@ __C {
         ops::argmax(max_idx, max_val, logits);
 
         int64_t result;
-        std::memcpy(&result, max_idx->data(), sizeof(int64_t));
+        if (dev == LLAISYS_DEVICE_CPU) {
+            std::memcpy(&result, max_idx->data(), sizeof(int64_t));
+        } else {
+            core::context().setDevice(dev, dev_id);
+            core::context().runtime().api()->memcpy_sync(&result, max_idx->data(), sizeof(int64_t), LLAISYS_MEMCPY_D2H);
+        }
         model->kv_cache_pos += ntoken;
 
         return result;

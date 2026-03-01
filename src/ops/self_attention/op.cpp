@@ -1,6 +1,12 @@
 #include "op.hpp"
 #include "../../core/llaisys_core.hpp"
 #include "cpu/self_attention_cpu.hpp"
+#ifdef ENABLE_NVIDIA_API
+#include "nvidia/self_attention_cuda.cuh"
+#endif
+#ifdef ENABLE_METAX_API
+#include "metax/self_attention_maca.cuh"
+#endif
 
 namespace llaisys::ops {
 void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float scale) {
@@ -14,8 +20,23 @@ void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float
     size_t kv_len = k->shape()[0];
     size_t num_kv_heads  = k->shape()[1];
 
-    if (attn_val->deviceType() == LLAISYS_DEVICE_CPU) {
+    llaisys::core::context().setDevice(attn_val->deviceType(), attn_val->deviceId());
+
+    switch (attn_val->deviceType()) {
+    case LLAISYS_DEVICE_CPU:
         return cpu::self_attention(attn_val->data(), q->data(), k->data(), v->data(), q->dtype(), query_len, kv_len, num_heads, num_kv_heads, head_dim, scale);
+#ifdef ENABLE_NVIDIA_API
+    case LLAISYS_DEVICE_NVIDIA:
+        return nvidia::self_attention(attn_val->data(), q->data(), k->data(), v->data(), q->dtype(), query_len, kv_len, num_heads, num_kv_heads, head_dim, scale,
+                                     llaisys::core::context().runtime().stream());
+#endif
+#ifdef ENABLE_METAX_API
+    case LLAISYS_DEVICE_METAX:
+        return metax::self_attention(attn_val->data(), q->data(), k->data(), v->data(), q->dtype(), query_len, kv_len, num_heads, num_kv_heads, head_dim, scale,
+                                    llaisys::core::context().runtime().stream());
+#endif
+    default:
+        EXCEPTION_UNSUPPORTED_DEVICE;
     }
 }
 } // namespace llaisys::ops
