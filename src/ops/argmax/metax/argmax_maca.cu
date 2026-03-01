@@ -1,6 +1,7 @@
 #include "argmax_maca.cuh"
 #include "../../../device/metax/maca_cast.cuh"
 #include <mcr/mc_runtime.h>
+#include <cmath>
 
 static const int BLOCK_SIZE = 256;
 static const int MAX_BLOCKS = 128;

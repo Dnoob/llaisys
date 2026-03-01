@@ -1,7 +1,6 @@
 -- MetaX MACA custom build rule
 -- mxcc compiles .cu files similar to nvcc
 rule("maca")
-    set_extensions(".cu")
     on_build_file(function (target, sourcefile, opt)
         import("utils.progress")
         local objectfile = target:objectfile(sourcefile)

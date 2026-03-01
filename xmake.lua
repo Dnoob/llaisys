@@ -127,10 +127,23 @@ target("llaisys")
         add_linkdirs("/usr/local/cuda/lib64")
     end
     if has_config("mx-gpu") then
-        add_files("src/device/metax/*.cu", "src/ops/*/metax/*.cu", {rule = "maca"})
         add_includedirs("/opt/maca/include")
         add_linkdirs("/opt/maca/lib")
         add_links("mcblas")
+        before_build(function (target)
+            local mxcc = "/opt/maca/mxgpu_llvm/bin/mxcc"
+            local cu_files = {}
+            for _, f in ipairs(os.files("src/device/metax/*.cu")) do table.insert(cu_files, f) end
+            for _, f in ipairs(os.files("src/ops/*/metax/*.cu")) do table.insert(cu_files, f) end
+            for _, sourcefile in ipairs(cu_files) do
+                local objectfile = target:objectfile(sourcefile)
+                os.mkdir(path.directory(objectfile))
+                print("compiling.maca %s", sourcefile)
+                os.vrunv(mxcc, {"-c", sourcefile, "-o", objectfile, "-fPIC", "-std=c++17",
+                    "-Iinclude", "-I/opt/maca/include", "-DENABLE_METAX_API"})
+                table.insert(target:objectfiles(), objectfile)
+            end
+        end)
     end
     set_installdir(".")
 

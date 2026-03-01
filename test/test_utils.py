@@ -189,7 +189,7 @@ def torch_device(device_name: str, device_id=0):
     elif device_name == "nvidia":
         return torch.device(f"cuda:{device_id}")
     elif device_name == "metax":
-        return torch.device(f"musa:{device_id}")
+        return torch.device(f"cuda:{device_id}")
     else:
         raise ValueError(f"Unsupported device name: {device_name}")
 
